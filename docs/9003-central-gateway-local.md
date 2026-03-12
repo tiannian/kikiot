@@ -29,6 +29,9 @@
 1. 集成初始化时，会创建一个 **mDNS 浏览器**，监听局域网中的“小米中央网关服务”。
 2. 每个中央网关对应一个 **服务分组 ID：`group_id`**，与米家家庭一一对应：
    - 配置阶段，用户在「选择家庭与设备」界面选中的每个家庭，都会保存对应的 `group_id` 与 `home_name`。
+   - 这些家庭 / 房间 / 设备与 `group_id` 的映射信息来自 **MIoT Cloud HTTP API**，由 `miot_cloud.get_homeinfos_async()` 通过云端 RPC 调用  
+     `POST /app/v2/homeroom/gethome` 获取（参数示例：`limit=150, fetch_share=true, fetch_share_dev=true, plat_form=0, app_ver=9`），
+     并在本地整理为包含 `home_id` / `home_name` / `room_info` / `group_id` / `dids` 等字段的结构，供「选择家庭与设备」界面使用。
 3. mDNS 浏览器持续维护以下信息：
    - 每个 `group_id` 对应的一条网关服务记录：
      - 网关 IP 地址列表：`addresses[]`
@@ -46,7 +49,17 @@
      - `host`：中央网关在局域网内的 IP（取 mDNS 中地址列表的第一个）。
      - `port`：中央网关 MQTT/TLS 服务端口（来自 mDNS）。
      - `ca_file` / `cert_file` / `key_file`：用于 TLS 双向认证的本地证书路径。
-       - 证书由云端根据 OAuth 授权签发，后续通过云端接口可刷新。
+       - `ca_file`：米家云内置的 CA 根证书，集成在本地首次使用时将内嵌 PEM 写入  
+         `.storage/xiaomi_home/cert/mihome_ca.cert`，**不依赖任何 OAuth 接口获取**。
+       - `key_file`：用于中央网关双向认证的用户私钥，由集成本地使用 Ed25519 随机生成，  
+         并写入 `.storage/xiaomi_home/cert/{uid}_{cloud_server}.key`，**同样不通过云端接口下发**。
+       - `cert_file`：用户证书，由米家云端在 OAuth 授权后，根据本地生成的 CSR 进行签发：  
+         - 集成使用 OAuth2 获取到的 `access_token` 调用  
+           `POST https://<cloud_server>.account.xiaomi.com/app/v2/ha/oauth/get_central_crt`，  
+           请求体中携带 base64 编码的 CSR 字符串；  
+         - 云端返回的 `result.cert` 为 PEM 格式证书，保存到  
+           `.storage/xiaomi_home/cert/{uid}_{cloud_server}.cert`，即 `cert_file`；  
+         - 证书过期前由集成定期调用同一接口刷新。
      - `home_name`：仅用于日志和 UI 展示。
 3. 为每个 `MipsLocalClient` 注册回调：
    - **`on_dev_list_changed(group_id, did_list)`**：
