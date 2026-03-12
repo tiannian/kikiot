@@ -20,6 +20,17 @@
   - 标准 OAuth2 授权码模式（Authorization Code Grant）。
   - Xiaomi Home 集成使用专用的 `client_id`（由小米分配给此集成，本文记为 `OAUTH2_CLIENT_ID`）。
 
+- **配置常量来源与存储位置 / Where Key Params Are Stored**
+  - `client_id`（即 `OAUTH2_CLIENT_ID`）：
+    - 在集成源码 `miot/const.py` 中以常量形式写死（`OAUTH2_CLIENT_ID = '2882303761520251711'`），供 OAuth 客户端与 HTTP 客户端统一使用。
+    - 不会作为用户可编辑配置保存在 HA 存储中。
+  - `oauth_redirect_url`：
+    - 配置向导中由用户选择/确认，默认值来自常量 `OAUTH_REDIRECT_URL`（定义在 `miot/const.py`，默认为 `http://homeassistant.local:8123`）。
+    - 集成在运行时生成 `webhook_path` 后，将两者拼接得到 `redirect_uri`，并把完整值存入 HA 配置条目的 `data["oauth_redirect_url"]` 字段中（保存在 HA 的 `.storage/core.config_entries` 文件里）。
+  - `DEFAULT_OAUTH2_API_HOST`：
+    - 同样定义在 `miot/const.py` 中（`DEFAULT_OAUTH2_API_HOST = 'ha.api.io.mi.com'`）。
+    - 在代码中根据 `cloud_server` 拼接得到最终的 OAuth2 / HTTP API Host，例如中国区直接使用 `ha.api.io.mi.com`，其它区域使用 `<cloud_server>.ha.api.io.mi.com`。
+
 - **本地凭证存储结构（概念上）**
   - 以 `(uid, cloud_server)` 为键存储用户配置；每个键下至少包含：
     - `auth_info`：
